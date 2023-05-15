@@ -35,25 +35,24 @@ def handle_chatgpt():
 
     # Call the OpenAI API to generate a response
     response = openai.Completion.create(
-        engine="davinci",
+        engine="text-davinci-003",
         prompt=command_text,
         max_tokens=60,
         n=1,
         stop=None,
-        temperature=0.5,
+        temperature=0.8,
     )
-    reply_text = response.choices[0].text.strip()
+    
 
    # Send the generated text back to Slack
     try:
         # Get the channel ID from the request
         channel_id = request.form["channel_id"]
-        print(channel_id, reply_text)
 
         # Use the Slack API client to send a message to the channel
         client.chat_postMessage(
             channel=channel_id,
-            text=reply_text
+            text=response.choices[0].text
         )
 
     except SlackApiError as e:
