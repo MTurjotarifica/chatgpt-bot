@@ -40,7 +40,7 @@ def interactive_trigger():
     # actions_value = data.get("actions.value")
     action_id = json.loads(data2['payload'])['actions'][0]['action_id']
     
-    if action_id == "newsapi":
+    if action_id == "chatgpt":
         # Get the text of the user's command
         command_text = json.loads(data2['payload'])['actions'][0]['value']
         # Call the OpenAI API to generate a response
