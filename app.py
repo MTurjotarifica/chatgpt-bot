@@ -55,9 +55,6 @@ def interactive_trigger():
         
         # Send the generated text back to Slack
         try:
-            # Get the channel ID from the request
-            channel_id = request.form["channel_id"]
-
             # Use the Slack API client to send a message to the channel
             client.chat_postMessage(
                 channel=channel_id,
@@ -106,7 +103,7 @@ def handle_chatgpt():
                                         )
 
     #returning empty string with 200 response
-    return 'GPT works', 200
+    return '', 200
 
     
 
