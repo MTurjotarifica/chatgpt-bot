@@ -33,6 +33,7 @@ def handle_chatgpt():
     # Get the text of the user's command
     command_text = request.form["text"]
 
+    client.chat_postMessage(response_type= "in_channel", channel=channel_id, text=" Chatgpt prompt" )
     # Call the OpenAI API to generate a response
     response = openai.Completion.create(
         engine="text-davinci-003",
