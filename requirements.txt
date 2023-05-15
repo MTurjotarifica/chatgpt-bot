@@ -3,3 +3,4 @@ slack_bolt
 slackeventsapi
 slack_sdk
 python-dotenv
+openai
