@@ -27,40 +27,88 @@ client = slack_app.client
 # Set up the OpenAI API key
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
+@app.route('/slack/interactive-endpoint', methods=['GET','POST'])
+def interactive_trigger():
+    data = request.form
+    data2 = request.form.to_dict()
+    # user_id = data.get('user_id')
+    channel_id = json.loads(data2['payload'])['container']['channel_id']
+    # text = json.loads(data2['payload'])['actions'][0]['value']
+
+    # response_url = json.loads(data2['payload'])['response_url']
+    # actions = data.get("actions")
+    # actions_value = data.get("actions.value")
+    action_id = json.loads(data2['payload'])['actions'][0]['action_id']
+    
+    if action_id == "newsapi":
+        # Get the text of the user's command
+        command_text = json.loads(data2['payload'])['actions'][0]['value']
+        # Call the OpenAI API to generate a response
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=command_text,
+            max_tokens=60,
+            n=1,
+            stop=None,
+            temperature=0.8,
+        )
+        
+        # Send the generated text back to Slack
+        try:
+            # Get the channel ID from the request
+            channel_id = request.form["channel_id"]
+
+            # Use the Slack API client to send a message to the channel
+            client.chat_postMessage(
+                channel=channel_id,
+                text=response.choices[0].text
+            )
+
+        except SlackApiError as e:
+            # Print any errors to the console
+            print(f"Error sending message: {e}")
+
+        # Return an empty response
+        return make_response("", 200)
+        #return make_response(json.dumps(response_data), 200)   
+
+
+        
 # Define the slash command handler
 @app.route("/chatgpt", methods=["POST"])
 def handle_chatgpt():
-    # Get the text of the user's command
-    command_text = request.form["text"]
-    # Call the OpenAI API to generate a response
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=command_text,
-        max_tokens=60,
-        n=1,
-        stop=None,
-        temperature=0.8,
-    )
+    data = request.form
+    channel_id = data.get('channel_id')
+
+    #this creates the text prompt in slack block kit
+    gptquery = [
+        {
+           "type": "divider"
+           },
+        {
+            "dispatch_action": True,
+            "type": "input",
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "chatgpt"
+            },
+            "label": {
+                "type": "plain_text",
+                "text": "Please type the keyword for the Chatgpt",
+                "emoji": True
+            }
+        }
+    ]
+
+    client.chat_postMessage(channel=channel_id, 
+                                        text="Query:  ",
+                                        blocks = gptquery
+                                        )
+
+    #returning empty string with 200 response
+    return 'GPT works', 200
+
     
-
-   # Send the generated text back to Slack
-    try:
-        # Get the channel ID from the request
-        channel_id = request.form["channel_id"]
-
-        # Use the Slack API client to send a message to the channel
-        client.chat_postMessage(
-            channel=channel_id,
-            text=response.choices[0].text
-        )
-
-    except SlackApiError as e:
-        # Print any errors to the console
-        print(f"Error sending message: {e}")
-
-    # Return an empty response
-    return make_response("", 200)
-    #return make_response(json.dumps(response_data), 200)
 
 # Add a route for the /hello command
 @app.route("/hello3", methods=["POST"])
