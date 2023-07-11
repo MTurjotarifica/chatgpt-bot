@@ -1,29 +1,32 @@
-from flask import Flask, request, make_response
-import json
+from flask import Flask, request, make_response, redirect
 from slack_bolt import App
-from slackeventsapi import SlackEventAdapter
-from slack_sdk.errors import SlackApiError
-from slack_bolt.adapter.flask import SlackRequestHandler
+from slack_sdk.oauth.installation_store import FileInstallationStore
+from slack_sdk.oauth.state_store import FileOAuthStateStore
 from slack_sdk import WebClient
 import os
 import openai
 from dotenv import load_dotenv 
 from pathlib import Path   
 
-# env_path = Path('.') / '.env'
-# load_dotenv(dotenv_path = env_path)
-
 load_dotenv()
 
 # Initialize the Flask app and the Slack app
 app = Flask(__name__)
+
+# Create instances of the installation and state stores
+installation_store = FileInstallationStore()
+oauth_state_store = FileOAuthStateStore(expiration_seconds=300, base_dir="./oauth_state")
+
 slack_app = App(
     token=os.environ["SLACK_BOT_TOKEN"],
-    signing_secret=os.environ["SLACK_SIGNING_SECRET"]
+    signing_secret=os.environ["SLACK_SIGNING_SECRET"],
+    installation_store=installation_store,
+    oauth_state_store=oauth_state_store
 )
 
-slack_client = slack_app.client
-client = slack_app.client
+slack_client = WebClient(token=None, installation_store=installation_store)
+client = slack_client
+
 # Set up the OpenAI API key
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
@@ -31,19 +34,11 @@ openai.api_key = os.environ["OPENAI_API_KEY"]
 def interactive_trigger():
     data = request.form
     data2 = request.form.to_dict()
-    # user_id = data.get('user_id')
     channel_id = json.loads(data2['payload'])['container']['channel_id']
-    # text = json.loads(data2['payload'])['actions'][0]['value']
-
-    # response_url = json.loads(data2['payload'])['response_url']
-    # actions = data.get("actions")
-    # actions_value = data.get("actions.value")
     action_id = json.loads(data2['payload'])['actions'][0]['action_id']
     
     if action_id == "chatgpt":
-        # Get the text of the user's command
         command_text = json.loads(data2['payload'])['actions'][0]['value']
-        # Call the OpenAI API to generate a response
         response = openai.Completion.create(
             engine="text-davinci-003",
             prompt=command_text,
@@ -53,35 +48,26 @@ def interactive_trigger():
             temperature=0.8,
         )
         
-        # Send the generated text back to Slack
         try:
-            # Use the Slack API client to send a message to the channel
             client.chat_postMessage(
                 channel=channel_id,
                 text=response.choices[0].text
             )
-
         except SlackApiError as e:
-            # Print any errors to the console
             print(f"Error sending message: {e}")
-
-        # Return an empty response
-        return make_response("", 200)
-        #return make_response(json.dumps(response_data), 200)   
-
-
         
-# Define the slash command handler
+        return make_response("", 200)
+
+
 @app.route("/chatgpt", methods=["POST"])
 def handle_chatgpt():
     data = request.form
     channel_id = data.get('channel_id')
 
-    #this creates the text prompt in slack block kit
     gptquery = [
         {
            "type": "divider"
-           },
+        },
         {
             "dispatch_action": True,
             "type": "input",
@@ -98,35 +84,44 @@ def handle_chatgpt():
     ]
 
     client.chat_postMessage(channel=channel_id, 
-                                        text="Query:  ",
-                                        blocks = gptquery
-                                        )
+                            text="Query:  ",
+                            blocks = gptquery
+    )
 
-    #returning empty string with 200 response
     return '', 200
 
-    
-
-# Add a route for the /hello command
 @app.route("/hello3", methods=["POST"])
 def handle_hello_request():
     data = request.form
     channel_id = data.get('channel_id')
-    # Execute the /hello command function
     client.chat_postMessage(response_type= "in_channel", channel=channel_id, text=" 2nd it works!33!" )
-    return "Hello world3" , 200
+    return "Hello world3", 200
 
+# OAuth installation endpoint
+@app.route("/slack/install", methods=["GET"])
+def install():
+    try:
+        callback_url = request.base_url + "/callback"
+        return redirect(slack_app.oauth.install_url(callback_url=callback_url))
+    except Exception as e:
+        return make_response("Installation failed", 500)
 
+# OAuth callback endpoint
+@app.route("/slack/install/callback", methods=["GET"])
+def callback():
+    try:
+        if "code" in request.args:
+            oauth_response = slack_app.oauth.v2_access(
+                code=request.args["code"],
+                callback_url=request.base_url
+            )
+            # Store the installation details, including the access token
+            installation_store.save(installation=oauth_response["installation"])
+            return make_response("Installation successful!")
+        else:
+            return make_response("Authorization denied")
+    except Exception as e:
+        return make_response("Callback failed", 500)
 
-# Start the Slack app using the Flask app as a middleware
-handler = SlackRequestHandler(slack_app)
-
-@app.route("/slack/events", methods=["POST"])
-def slack_events():
-    return handler.handle(request)
-
-
-# Run the Flask app
 if __name__ == "__main__":
-    # app.run(port=5001)
     app.run(debug=True)
