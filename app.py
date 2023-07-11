@@ -21,7 +21,7 @@ slack_app = App(
     token=os.environ["SLACK_BOT_TOKEN"],
     signing_secret=os.environ["SLACK_SIGNING_SECRET"],
     installation_store=installation_store,
-    oauth_state_store=oauth_state_store
+    # oauth_state_store=oauth_state_store
 )
 
 slack_client = WebClient(token=None, installation_store=installation_store)
