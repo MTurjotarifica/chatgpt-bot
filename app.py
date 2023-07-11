@@ -24,7 +24,7 @@ slack_app = App(
     # oauth_state_store=oauth_state_store
 )
 
-slack_client = WebClient(token=None, installation_store=installation_store)
+slack_client = WebClient(token=None)
 client = slack_client
 
 # Set up the OpenAI API key
