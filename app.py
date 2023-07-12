@@ -17,6 +17,7 @@ load_dotenv()
 
 # Initialize the Flask app and the Slack app
 app = Flask(__name__)
+
 slack_app = App(
     token=os.environ["SLACK_BOT_TOKEN"],
     signing_secret=os.environ["SLACK_SIGNING_SECRET"]
@@ -105,7 +106,7 @@ def handle_chatgpt():
     #returning empty string with 200 response
     return '', 200
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
 
