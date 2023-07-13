@@ -127,6 +127,10 @@ handler = SlackRequestHandler(slack_app)
 
 @app.route("/slack/events", methods=["POST"])
 def slack_events():
+    if request.headers.get("Content-Type") == "application/json":
+        payload = json.loads(request.data)
+        if "challenge" in payload:
+            return make_response(payload["challenge"], 200)
     return handler.handle(request)
 
 
