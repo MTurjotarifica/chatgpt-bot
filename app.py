@@ -8,14 +8,11 @@ from slack_sdk import WebClient
 import os
 import openai
 from dotenv import load_dotenv 
-from pathlib import Path   
-
-# env_path = Path('.') / '.env'
-# load_dotenv(dotenv_path = env_path)
+from pathlib import Path  
+import requests 
 
 load_dotenv()
 
-# Initialize the Flask app and the Slack app
 app = Flask(__name__)
 
 slack_app = App(
@@ -25,116 +22,43 @@ slack_app = App(
 
 slack_client = slack_app.client
 client = slack_app.client
-# Set up the OpenAI API key
+
+slack_client_id = os.environ["SLACK_CLIENT_ID"]
+slack_client_secret = os.environ["SLACK_CLIENT_SECRET"]
+
 openai.api_key = os.environ["OPENAI_API_KEY"]
 
-@app.route('/slack/interactive-endpoint', methods=['GET','POST'])
-def interactive_trigger():
-    data = request.form
-    data2 = request.form.to_dict()
-    # user_id = data.get('user_id')
-    channel_id = json.loads(data2['payload'])['container']['channel_id']
-    # text = json.loads(data2['payload'])['actions'][0]['value']
+# ... your existing routes and code ...
 
-    # response_url = json.loads(data2['payload'])['response_url']
-    # actions = data.get("actions")
-    # actions_value = data.get("actions.value")
-    action_id = json.loads(data2['payload'])['actions'][0]['action_id']
-    
-    if action_id == "chatgpt":
-        # Get the text of the user's command
-        command_text = json.loads(data2['payload'])['actions'][0]['value']
-        # Call the OpenAI API to generate a response
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=command_text,
-            max_tokens=60,
-            n=1,
-            stop=None,
-            temperature=0.8,
-        )
-        
-        # Send the generated text back to Slack
-        try:
-            # Use the Slack API client to send a message to the channel
-            client.chat_postMessage(
-                channel=channel_id,
-                text=response.choices[0].text
-            )
+@app.route('/slack/callback', methods=['GET', 'POST'])
+def slack_callback():
+    code = request.args.get('code')
+    state = request.args.get('state')
 
-        except SlackApiError as e:
-            # Print any errors to the console
-            print(f"Error sending message: {e}")
-
-        # Return an empty response
-        return make_response("", 200)
-        #return make_response(json.dumps(response_data), 200)   
-
-
-        
-# Define the slash command handler
-@app.route("/chatgpt", methods=["POST"])
-def handle_chatgpt():
-    data = request.form
-    channel_id = data.get('channel_id')
-
-    #this creates the text prompt in slack block kit
-    gptquery = [
-        {
-           "type": "divider"
-           },
-        {
-            "dispatch_action": True,
-            "type": "input",
-            "element": {
-                "type": "plain_text_input",
-                "action_id": "chatgpt"
-            },
-            "label": {
-                "type": "plain_text",
-                "text": "Please type the keyword for the Chatgpt",
-                "emoji": True
-            }
+    # Make a request to exchange the code for an access token
+    response = requests.post(
+        'https://slack.com/api/oauth.v2.access',
+        params={
+            'code': code,
+            'client_id': slack_client_id,
+            'client_secret': slack_client_secret
         }
-    ]
+    )
 
-    client.chat_postMessage(channel=channel_id, 
-                                        text="Query:  ",
-                                        blocks = gptquery
-                                        )
+    if response.status_code == 200:
+        # Access token obtained successfully
+        access_token = response.json()['access_token']
+        # Process the access token as needed
+        # ...
+        # Redirect the user to the desired page after authentication
+        return redirect('/success')
+    else:
+        # Error handling for token exchange failure
+        # ...
+        # Redirect the user to an error page
+        return redirect('/error')
 
-    #returning empty string with 200 response
-    return '', 200
+# ... your existing code ...
 
-@app.route('/', methods=['GET'])
-def index():
-    return render_template('index.html')
-
-
-# Add a route for the /hello command
-@app.route("/hello3", methods=["POST"])
-def handle_hello_request():
-    data = request.form
-    channel_id = data.get('channel_id')
-    # Execute the /hello command function
-    client.chat_postMessage(response_type= "in_channel", channel=channel_id, text=" 2nd it works!33!" )
-    return "Hello world3" , 200
-
-
-
-# Start the Slack app using the Flask app as a middleware
-handler = SlackRequestHandler(slack_app)
-
-@app.route("/slack/events", methods=["POST"])
-def slack_events():
-    if request.headers.get("Content-Type") == "application/json":
-        payload = json.loads(request.data)
-        if "challenge" in payload:
-            return make_response(payload["challenge"], 200)
-    return handler.handle(request)
-
-
-# Run the Flask app
 if __name__ == "__main__":
-    # app.run(port=5001)
     app.run(debug=True)
